@@ -1,4 +1,4 @@
-### A simple webform sumbmitter for 
+### A simple webform sumbmitter for the polyhedral data set
 import mechanize
 
 url = "https://polyhedral.eecs.yorku.ca/"
@@ -6,12 +6,12 @@ br = mechanize.Browser()
 br.set_handle_robots(False) # ignore robots
 br.open(url)
 br.select_form(name="polyForm")
-br['data_type'] = ["generator"] # "generator", "upload"
-br["light"] = ["fixed"] # "fixed", "homogenous"
-br["numberObjects"] = "1" # or any
-br["layout"] = ["separate",] # "touching" or "intersecting"
-br["numberViews"] = "3"
-br["emailAddress"] = "Savoji@yorku.ca"
+br['data_type'] = ["generator"]        # "generator", "upload"
+br["light"] = ["fixed"]                # "fixed", "homogenous"
+br["numberObjects"] = "1"              # or any other number in [1, 180]
+br["layout"] = ["separate",]           # "touching" or "intersecting"
+br["numberViews"] = "3"                # number of views to be generated
+br["emailAddress"] = "Savoji@yorku.ca" # your email address
 
 res = br.submit()
 content = res.read()
