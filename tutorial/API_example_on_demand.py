@@ -7,20 +7,20 @@ import numpy as np
 
 # Create Connection
 ws = create_connection("wss://polyhedral.eecs.yorku.ca/api/")
-ws = create_connection("ws://230t.eecs.yorku.ca:8044/api/") # only available to students at YorkU (note: ws vs wss for the protocol)
+# ws = create_connection("ws://230t.eecs.yorku.ca:8044/api/") # only available to students at YorkU (note: ws vs wss for the protocol)
 
 # Set Parameters
 parameter = {
-    'ID':'YOUR ID HERE',
+    'ID':'3b4018ba-16e6-48b8-be42-9ecb451d9796',
     'light_fixed':'true',
-    'random_cam': 'true',
-    'cam_x':-0.911,
-    'cam_y':1.238,
-    'cam_z':-4.1961,
-    'cam_qw':-0.0544,
-    'cam_qx':-0.307,
-    'cam_qy':0.9355,
-    'cam_qz':0.16599
+    'random_cam': 'false',
+    'cam_x':-1.2911862/20,
+    'cam_y': 4.6562521/20,
+    'cam_z': 1.35520790/20,
+    'cam_qw':-0.1074521,
+    'cam_qx':-0.0814614,
+    'cam_qy':0.59861538,
+    'cam_qz':0.7896060
 }
 json_params = dumps(parameter, indent=2)
 
