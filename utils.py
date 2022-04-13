@@ -1,10 +1,56 @@
-from .libs import *
+from libs import *
+PP_TH = 0.5
+PP_GT = 0.12
+MX_CP = 2
+IMG_W = 1080
+IMG_H = 1920
+DEG_STEP = np.pi/6
+
+
+def scaled_distance(corner1, corner2, r):
+    return np.linalg.norm(corner1 - corner2)/r
+def get_graph(corners, r):
+    M = np.zeros(shape=(len(corners), len(corners)))
+    for i, c1 in enumerate(corners):
+        for j, c2 in enumerate(corners):
+            M[i, j] = scaled_distance(c1, c2, r)
+    return M
+    
+def find_corners(img, r):
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    # find Harris corners
+    gray = np.float32(gray)
+    dst = cv2.cornerHarris(gray,3,3,0.03)
+    dst = cv2.dilate(dst,None)
+    ret, dst = cv2.threshold(dst,0.005*dst.max(),255,0)
+    dst = np.uint8(dst)
+    # find centroids
+    ret, labels, stats, centroids = cv2.connectedComponentsWithStats(dst)
+
+    # define the criteria to stop and refine the corners
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.001)
+    corners = cv2.cornerSubPix(gray,np.float32(centroids),(10,10),(-1,-1),criteria)
+    mean_corner = np.mean(corners, axis = 0)
+    corners = [corners[i] for i in range(len(corners))]
+    corners.sort(key=lambda x: scaled_distance(x, mean_corner, r))
+
+    return corners
+    
+def draw_corners(img, corners, obj_data_path, obj_cam_loc):
+    for corner in corners:
+        center_coordinates = (int(corner[0]), int(corner[1]))
+        radius = 10
+        color = (0, 0, 255)
+        thickness = 2
+        img = cv2.circle(img, center_coordinates, radius, color, thickness)
+    save_path = os.path.join(obj_data_path,f"{hash(obj_cam_loc)}_corners.jpg")
+    cv2.imwrite(save_path,img)
 
 class CamLoc():
-    def __init__(self, cam_r=1, cam_theta=np.pi/2, cam_phi=0, r_deg=0) -> None:
+    def __init__(self, cam_r=10, cam_theta=np.pi/2, cam_phi=0, r_deg=0) -> None:
         self.cam_r = cam_r
         self.cam_theta = cam_theta
-        self.cam_phi = self.cam_phi
+        self.cam_phi = cam_phi
         self.r_deg = r_deg
 
     def get_params(self):
@@ -16,6 +62,8 @@ class CamLoc():
         self.cam_theta += cam2_theta
         self.cam_phi += cam2_phi
         self.r_deg += r2_deg
+    def __hash__(self) -> int:
+        return hash(self.get_params())
 
 def observe(obj_id, cam_loc):
     '''
@@ -83,9 +131,12 @@ def get_image(cam_dict, verbose=False):
     ws.send(json_params)
 
     # Wait patiently while checking status
+    last_status = None
     while True:
         result = json.loads(ws.recv())
-        print("Job Status: {0}".format(result['status']))
+        if not last_status == result['status']:
+            print("Job Status: {0}".format(result['status']))
+            last_status = result['status']
         if result['status'] == "SUCCESS":
             break
         elif "FAILURE" in result['status'] or "INVALID" in result['status']:
@@ -105,7 +156,43 @@ def get_image(cam_dict, verbose=False):
 
     # Close Connection
     ws.close()
-    return image
+    return cv_image
+
+def pp(img, pp_th, ax, side):
+        '''
+        compute the pading percent of image
+        '''
+        if side == "left":
+            step = +1
+        else:
+            step = -1
+
+        temp = np.max(img, axis=ax)
+        temp  = temp / np.max(temp)
+        count = 0
+        for x in temp[::step]:
+            if x < pp_th:
+                count += 1
+            else: break
+        pp = count/len(temp)
+        return pp
+
+def image_pp(img):
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    pps = []
+    axs = [0, 1]
+    sides = ["left", "right"]
+    for ax in axs:
+        for side in sides:
+            pps.append(pp(img, PP_TH, ax, side))
+    return np.min(pps)
+
+def adjust_to_fill(img, cam_loc) -> CamLoc:
+    pp = image_pp(img)
+    rx = PP_GT/pp
+    cam_loc.cam_r *= rx
+    return cam_loc
+
 
 class Pt(object):
     def __init__(self, coordinate):
