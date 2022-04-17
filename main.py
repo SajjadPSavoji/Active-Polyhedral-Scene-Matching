@@ -89,7 +89,6 @@ def observe_scaled_images(obj1_data, obj2_data, obj1_cam_loc, obj2_cam_loc, obj1
     img2 = observe(obj2_id, obj2_cam_loc)
     obj1_cam_loc = adjust_to_fill(img1, obj1_cam_loc)
     obj2_cam_loc = adjust_to_fill(img2, obj2_cam_loc)
-    
     obj1_data[obj1_cam_loc] = observe(obj1_id, obj1_cam_loc)
     obj2_data[obj2_cam_loc] = observe(obj2_id, obj2_cam_loc)
 
@@ -102,7 +101,30 @@ def observe_scaled_images(obj1_data, obj2_data, obj1_cam_loc, obj2_cam_loc, obj1
     cv2.imwrite(os.path.join(obj1_data_path,f"{hash(obj1_cam_loc)}.jpg"), obj1_data[obj1_cam_loc])
     cv2.imwrite(os.path.join(obj2_data_path,f"{hash(obj2_cam_loc)}.jpg"), obj2_data[obj2_cam_loc])
 
+def dist_graph(g1, g2):
+    if not g1.shape[0] == g2.shape[0]:
+        return np.float('inf')
+    else:
+        return np.mean(g1 - g2)
 
+
+def matched(obj1_graphs, obj2_graphs):
+    distances = []
+    cam_loc_1_min = None
+    cam_loc_2_min = None
+    for cam_loc_1 in obj1_graphs:
+        for cam_loc_2 in obj2_graphs:
+            d12 = dist_graph(obj1_graphs[cam_loc_1], obj2_graphs[cam_loc_2])
+            if d12 < d_min:
+                d_min = d12
+                cam_loc_1_min = cam_loc_1
+                cam_loc_2_min = cam_loc_2
+    print(d_min)
+    if d_min < 50:
+        return "S"
+    else:
+        return "P"
+            
 
 def compare_2objects(obj1_id, obj2_id, data_path) -> str:
     # set up directories for each object
@@ -117,41 +139,39 @@ def compare_2objects(obj1_id, obj2_id, data_path) -> str:
     #initialized CamLoc and Data containers
     obj1_cam_loc, obj2_cam_loc = CamLoc(), CamLoc()
     obj1_data, obj2_data = {}, {}
-    obj1_corners, obj2_corners = {}, {} 
+    obj1_corners, obj2_corners = {}, {}
+    obj1_M, obj2_M = {}, {} 
     obj1_graphs, obj2_graphs = {}, {}
+    obj1_next_locs, obj2_next_locs = [], []
 
     for _ in range(MX_CP):
         obj1_cam_loc, obj2_cam_loc = capture_plicy(obj1_corners, obj2_corners, obj1_cam_loc, obj2_cam_loc)
         observe_scaled_images(obj1_data, obj2_data, obj1_cam_loc, obj2_cam_loc, obj1_data_path, obj2_data_path, obj1_id, obj2_id)
-        corners_1 = find_corners(obj1_data[obj1_cam_loc], obj1_cam_loc.cam_r)
-        corners_2 = find_corners(obj2_data[obj2_cam_loc], obj2_cam_loc.cam_r)
+
+        corners_1, M1 = get_corners(obj1_data[obj1_cam_loc], obj1_data_path, obj1_cam_loc)
+        corners_2, M2 = get_corners(obj2_data[obj2_cam_loc], obj2_data_path, obj2_cam_loc)
+
+        # corners_1 = find_corners(obj1_data[obj1_cam_loc], obj1_cam_loc.cam_r)
+        # corners_2 = find_corners(obj2_data[obj2_cam_loc], obj2_cam_loc.cam_r)
+
         obj1_corners[obj1_cam_loc] = corners_1
         obj2_corners[obj2_cam_loc] = corners_2
-        draw_corners(obj1_data[obj1_cam_loc], corners_1, obj1_data_path, obj1_cam_loc)
-        draw_corners(obj2_data[obj2_cam_loc], corners_2, obj2_data_path, obj2_cam_loc)
+
+        obj1_M[obj1_cam_loc] = M1
+        obj2_M[obj2_cam_loc] = M2
+
+        # draw_corners(obj1_data[obj1_cam_loc], corners_1, obj1_data_path, obj1_cam_loc)
+        # draw_corners(obj2_data[obj2_cam_loc], corners_2, obj2_data_path, obj2_cam_loc)
+
         graph_1 = get_graph(corners_1, obj1_cam_loc.cam_r)
         graph_2 = get_graph(corners_2, obj2_cam_loc.cam_r)
         obj1_graphs[obj1_cam_loc] = graph_1
-        obj2_graphs[obj2_cam_loc] = graph_2 
-    
-        
-        # sim = similar(obj1, obj2)
-        # if sim == "S":
-        # elif sim 
+        obj2_graphs[obj2_cam_loc] = graph_2
 
-            
-            
-
-
-    
-    # do your comparision in an active fashion 
-    # get images from both objects 
-    # extract features
-    # decide if they are the same or not
-    # if decided -> terminate and return "S" or "D"
-    # else: get more images and more features
-    # terminate after a fized number of views
-    pass
+        state = matched(obj1_graphs, obj2_graphs)
+        if state == "S" or state == "D":
+            return state
+    return "D"
 
 
 def compare_objs_dataset(csv_path, data_path = "Data"):
@@ -161,8 +181,11 @@ def compare_objs_dataset(csv_path, data_path = "Data"):
         # make folders to store imgs and features
         # image name will be a hash of object id and camera config
         # so the system will not require many API calls
-        
-        row["Answer"] = compare_2objects(obj1_id, obj2_id, data_path)
+        try:
+            row["Answer"] = compare_2objects(obj1_id, obj2_id, data_path)
+        except:
+            pass
+    df.to_csv("./sub.csv", index=False)
 
 def main(args):
     compare_objs_dataset(args.TestSetPath, args.DataPath)

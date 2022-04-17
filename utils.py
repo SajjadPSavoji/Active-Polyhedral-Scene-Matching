@@ -1,9 +1,9 @@
 from libs import *
-PP_TH = 0.5
-PP_GT = 0.12
-MX_CP = 2
-IMG_W = 1080
-IMG_H = 1920
+PP_TH = 0.2
+PP_GT = 0.1
+MX_CP = 6
+IMG_H = 1080
+IMG_W = 1920
 DEG_STEP = np.pi/6
 
 
@@ -64,6 +64,8 @@ class CamLoc():
         self.r_deg += r2_deg
     def __hash__(self) -> int:
         return hash(self.get_params())
+    def __eq__(self, other: object) -> bool:
+        return self.hash() == other.hash()
 
 def observe(obj_id, cam_loc):
     '''
@@ -249,3 +251,170 @@ class SphericalPt(object):
 
     def npy(self):
         return np.array([self.r, self.theta, self.phi])
+
+def get_corners(img, obj_data_path, obj_cam_loc):
+    # Convert to graycsale
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray_min, gray_max = np.min(img_gray), np.max(img_gray)
+    img_gray = (img_gray - gray_min)/(gray_max - gray_min)*255
+
+    # Blur the image for better edge detection
+    img_blur = cv2.GaussianBlur(img_gray, (5,5), 0) 
+    # Combined X and Y Sobel Edge Detection
+    sobelxy = cv2.Sobel(src=img_blur, ddepth=cv2.CV_64F, dx=1, dy=1, ksize=5)
+    save_path = os.path.join(obj_data_path,f"{hash(obj_cam_loc)}_sobel.jpg")
+    cv2.imwrite(save_path,sobelxy)
+    sobelxy = np.uint8(sobelxy)
+
+
+    # get lines cordinates 
+    lines = cv2.HoughLinesP(sobelxy, rho = 1,theta = 1*np.pi/180,threshold = 50, minLineLength = 20 ,maxLineGap = 5)
+    lines = lines.reshape(-1, 4)
+    lines = lines.astype('float128')
+    noise = np.random.normal(loc=0, scale=0.001, size=lines.shape).astype("float128")
+    lines += noise
+
+    img_cp = copy.deepcopy(img)
+    color = (0, 0, 255)
+    thickness = 1
+    for line in lines:
+        start_point = (int(line[0]), int(line[1]))
+        end_point = (int(line[2]), int(line[3]))
+        img_cp = cv2.line(img_cp, start_point, end_point, color, thickness)
+
+    # save detected lines
+    save_path = os.path.join(obj_data_path,f"{hash(obj_cam_loc)}_lines.jpg")
+    cv2.imwrite(save_path,img_cp)
+
+    # computer slope and intercept of lines
+    ms = []
+    bs = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0], line[1], line[2], line[3]
+        m = (y2-y1)/(x2-x1)
+        b = y1 - m*x1
+        # if np.abs(m) > 1e10:
+        #     m = 1e4
+        #     b = y1 - m*x1
+
+        ms.append(m)
+        bs.append(b)
+
+    # find slope threshold
+    m_mx = np.max(ms)
+    m_mn = np.min(ms)
+    # m_th = (m_mx - m_mn) * 0.01
+    m_th = 0.3
+    def compute_min_dist(xi, yi, lines):
+        d_min = None
+        for line in lines:
+            x1, y1, x2, y2 = line[0], line[1], line[2], line[3]
+            p1 = np.array([x1, y1])
+            pj = np.array([xi, yi])
+            p2 = np.array([x2, y2])
+
+            d1 = np.linalg.norm(pj - p1)
+            d2 = np.linalg.norm(pj - p2)
+            if d_min is None:
+                d_min = d1
+            if d1 < d_min:
+                d_min = d1
+            if d2 < d_min:
+                d_min = d2
+        return d_min
+
+    # find all line intersections
+    joints = []
+    for i in range(len(ms)):
+        for j in range(i+1, len(ms)):
+            m1 , b1 =  ms[i], bs[i]
+            m2, b2 = ms[j], bs[j]
+
+            if np.abs(m1-m2)< m_th:
+                continue
+
+            else:
+                xi = (b1 - b2)/(m2 - m1)
+                yi = m1*xi + b1
+                try:
+                    print(xi, yi)
+                    print(lines[i:i+1])
+                    print(lines[j:j+1])
+                    print(m1, m2, b1, b2)
+                    # check if joint is near any of the lines
+                    d1_min_joint = compute_min_dist(xi, yi, lines[i:i+1])
+                    d2_min_joint = compute_min_dist(xi, yi, lines[j:j+1])
+                    d_min_joint = max(d1_min_joint, d2_min_joint)
+                    if d_min_joint > 15:
+                        continue
+                    # if np.abs(xi) > 1e4:
+                    #     xi = 1e4
+                    # if np.abs(yi) > 1e4:
+                    #     yi  = 1e4
+                    joints.append([xi, yi])
+                except:
+                    print("error in finding intersections")
+                    pass
+
+    color = (0, 255, 0)
+    thickness = 2
+    radius = 3
+    img_cp = copy.deepcopy(img)
+    for joint in joints:
+        p = (int(joint[0]), int(joint[1]))
+        img_cp = cv2.circle(img_cp, p, radius, color, thickness)
+    save_path = os.path.join(obj_data_path,f"{hash(obj_cam_loc)}_joints.jpg")
+    cv2.imwrite(save_path,img_cp)
+
+    # cluster joints
+    X = np.array(joints)
+    clt = DBSCAN(eps = 15, min_samples=5)
+    y = clt.fit_predict(X)
+    y_unique = np.unique(y)
+    centers = []
+    for yi in y_unique:
+        c = np.mean(X[y == yi, :], axis=0)
+        centers.append([c[0], c[1]])
+
+    def min_slope_deviation(c1, c2):
+        x1, y1 = c1[0], c1[1]
+        x2, y2 = c2[0], c2[1]
+        mc = (y2-y1)/(x2-x1)
+        d_min  = np.float('inf')
+        for m in ms:
+            if np.abs(m - mc) < d_min:
+                d_min = np.abs(m - mc)
+        return d_min
+
+    M = np.zeros((len(centers), len(centers)))
+    for i in range(len(centers)):
+        for j in range(i+1, len(centers)):
+            d_min = min_slope_deviation(centers[i], centers[j])
+            if d_min < m_th:
+                # corners are connected
+                M[i, j] = 1
+
+    img_cp = copy.deepcopy(img)
+    color = (0, 0, 255)
+    thickness = 3
+    radius = 5
+    for joint in centers:
+        p = (int(joint[0]), int(joint[1]))
+        img_cp = cv2.circle(img_cp, p, radius, color, thickness)
+
+    # color = (0, 255, 0)
+    # thickness = 4
+    # for i in range(len(M)):
+    #     for j in range(i+1, len(M)):
+    #         if M[i, j] > 0:
+    #             # draw line
+    #             start_point = (centers[i][0], centers[i][1])
+    #             end_point = (centers[j][0], centers[j][1])
+    #             img_cp = cv2.line(img_cp, start_point, end_point, color, thickness)
+
+    save_path = os.path.join(obj_data_path,f"{hash(obj_cam_loc)}_corners.jpg")
+    cv2.imwrite(save_path,img_cp)
+
+
+
+    return np.array(centers),M 
