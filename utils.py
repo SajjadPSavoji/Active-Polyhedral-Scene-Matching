@@ -1,7 +1,7 @@
 from libs import *
 PP_TH = 0.2
 PP_GT = 0.1
-MX_CP = 6
+MX_CP = 27
 IMG_H = 1080
 IMG_W = 1920
 DEG_STEP = np.pi/6
