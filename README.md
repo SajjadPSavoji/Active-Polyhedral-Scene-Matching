@@ -37,12 +37,7 @@ E(u,v) = \sum_{x,y} \underbrace{w(x,y)}_\text{window function} \, \[{\underbrace
 $$
 
 The window function is either a rectangular window or a Gaussian window which gives weights to pixels underneath. We have to maximize this function $E(u,v)$ for corner detection. That means we have to maximize the second term. Applying Taylor Expansion to the above equation and using some mathematical steps (please refer to any standard text books you like for full derivation), we get the final equation as shown below. Then comes the main part. After this, they created a score, basically an equation, which determines if a window can contain a corner or not.
-$$
-E(u,v) \approx \begin{bmatrix} u & v \end{bmatrix} M \begin{bmatrix} u \\ v \end{bmatrix} \qquad M = \sum_{x,y} w(x,y) \begin{bmatrix}I_x I_x & I_x I_y \\ I_x I_y & I_y I_y \end{bmatrix}
-$$
-$$
-R = \det(M) - k(\operatorname{trace}(M))^2
-$$
+
 
 # Clustering Corners:
 Since the corners detected in the previous step are far more than the actual corners, a clustering algorithm will be used to cluster them to unified corners. Once they are clustered, the center of each cluster will be used as the new object corner. For this specific task, I chose DBSCAN as it does not require the number of clusters in its hyper parameters.
