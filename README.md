@@ -12,3 +12,5 @@ Given two polyhedral scene IDs $\{I_1, I_2\}$ decide whether the underlying 3D o
 
 ![](https://github.com/SajjadPSavoji/Active-Polyhedral-Scene-Matching/blob/main/Report/figure/features.png?raw=true)
 The feature extraction part itself consists of 6 parts: pre-processing, edge detection, line detection, intersecting lines, clustering joints, and graph representation.
+
+\noindent \textbf{Pre-Processing.} As a the generated polyhedrals all have the same color, in the pre-processing a gray-scale version is generated. After that, all the functions will be aplied to this image. It is worth mentioning that most edge detection bydefault only work with gray-scale images; in that sense this step is inevitable.
