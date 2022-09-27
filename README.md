@@ -20,7 +20,7 @@ $$
 # Line Detection
 For the line detection part the Hough Line Transform is used. It is a transform used to detect straight lines only. To apply the Transform, first an edge detection pre-processing is desirable which was covered in the previous section. As you know, a line in the image space can be expressed with two variables $(m, b) or (r, \theta)$ For Hough Transforms, we will express lines in the Polar system.
 $$
-y = \left(-\frac{cos(\theta)}{sin(\theta)}\right)x + \left( \frac{x cos(\theta) + y sin(\theta)}{sin(\theta)}\right)
+y = (-\frac{cos(\theta)}{sin(\theta)})x + ( \frac{x cos(\theta) + y sin(\theta)}{sin(\theta)})
 $$
 
 # Line Intersection:
