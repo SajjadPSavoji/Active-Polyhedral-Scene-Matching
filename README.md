@@ -41,4 +41,4 @@ Since the corners detected in the previous step are far more than the actual cor
 
 # Graph Representation:
 Last but not least, once the corners and edges of the polyhedral are extracted, these information will be treated as a underacted graph with scaled edges. This means that an adjacency matrix M is computed for each graph in which nodes are the polyhedral corners and the edges are its corresponding edges. As for the cost of each eadge, it is computed via the pixed distance of corners devided by the camera scale parameter $r$.
-
+![](https://github.com/SajjadPSavoji/Active-Polyhedral-Scene-Matching/blob/main/Report/figure/ff.png?raw=true)
