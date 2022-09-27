@@ -19,9 +19,6 @@ $$
 
 # Line Detection
 For the line detection part the Hough Line Transform is used. It is a transform used to detect straight lines only. To apply the Transform, first an edge detection pre-processing is desirable which was covered in the previous section. As you know, a line in the image space can be expressed with two variables $(m, b) or (r, \theta)$ For Hough Transforms, we will express lines in the Polar system.
-$$
-y = (-\frac{cos(\theta)}{sin(\theta)})x + ( \frac{x cos(\theta) + y sin(\theta)}{sin(\theta)})
-$$
 
 # Line Intersection:
 While the edges of the polydedral are important features, having them alone will not be of use as it will not be representative enough. As such, it is possible to extract the corners of the polyhedral too. To do so I am using a hybrid method wich combines the Harris corner detector with my own line intersection algorithm. As for the latter case, once a line equation is given as $y = mx+b$ one can use it to detect the intersection point of two lines. using the following formula:
